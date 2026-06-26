@@ -110,8 +110,8 @@ if st.button('Predict Speech Accuracy'):
         # Append the feature value (either categorical or numerical)
         encoded_features.append(value)
 
-    # Convert list to numpy array and reshape for prediction
-    input_features = np.array(encoded_features).reshape(1, -1)
+    # Convert list to DataFrame with feature names to match model training
+    input_features = pd.DataFrame([encoded_features], columns=feature_names)
 
     # Make the prediction using the Random Forest model
     prediction = model.predict(input_features)
