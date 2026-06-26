@@ -4,12 +4,11 @@ import numpy as np
 import pandas as pd
 import joblib
 import shap
-import syllapy
+import pronouncing
 import nltk
 from nltk.corpus import cmudict
 from streamlit_shap import st_shap
 import matplotlib.pyplot as plt
-nltk.download('cmudict')
 
 # Load the trained Random Forest model
 model = joblib.load('simple_rf_best_model.joblib')
@@ -91,7 +90,7 @@ if page == "Single Subject":
         elif feature == 'Syllables_avg (SyllaPy)' or feature == 'Phonemes_avg (CMUDict)':
             if word_input:
                 # Compute syllables using syllapy
-                syllables_count = syllapy.count(word_input)
+                syllables_count = pronouncing.syllable_count(word_input.lower())
                 # Compute phonemes using CMUdict
                 phonemes = cmu_dict.get(word_input.lower())
                 phonemes_count = len(phonemes[0]) if phonemes else 0
@@ -166,6 +165,7 @@ elif page == "Multiple Subjects":
     # Download template
     st.subheader("Download Template CSV")
 
+    # Random example values
     template = pd.DataFrame({
         "Subject": ["SubjID-1"],
         "Word": ["apple"],
@@ -177,6 +177,7 @@ elif page == "Multiple Subjects":
         "Lesion_Volume": [12000]
     })
 
+    # csv for download
     st.download_button(
         "Download Template CSV",
         template.to_csv(index=False),
@@ -195,15 +196,15 @@ elif page == "Multiple Subjects":
         words = df["Word"].astype(str)
 
 
-        # Calculate the Freq_Cond
+        # Calculate high/low Freq_Cond
         df["Freq_Cond"] = np.where(
             words.str.lower().isin(set(w.lower() for w in word_list)),
             "High",
             "Low"
         )
 
-        # Calculate the Syllables_avg (SyllaPy)
-        df["Syllables_avg (SyllaPy)"] = words.apply(syllapy.count)
+        # Calculate the Syllables_avg (CMU_dict)
+        df["Syllables_avg (CMU_dict)"] = words.apply(lambda w: pronouncing.syllable_count(w.lower()))
 
         def phoneme_count(w):
             ph = cmu_dict.get(w.lower())
@@ -214,23 +215,31 @@ elif page == "Multiple Subjects":
 
 
         model_df = df.copy()
+
+        # Convert from high/low to 1/0 for the model
         model_df["Freq_Cond"] = model_df["Freq_Cond"].map({"High": 1, "Low": 0})
 
+        # Create the feature matrix for prediction
         X = model_df[feature_names]
 
+        # Prediction Column
         preds = model.predict(X)
+
+        # Confidence Column
         probs = model.predict_proba(X)
 
+        # Write out Correct/Wrong for prediction column
         df["Prediction"] = np.where(preds == 1, "Correct", "Wrong")
+
+        # Write out the confidence for each prediction
         df["Confidence"] = [probs[i, p] for i, p in enumerate(preds)]
 
-        # =========================
-        # OUTPUT
-        # =========================
+        # display success if successfully processed
         st.success(f"Processed {len(df)} rows")
 
         st.dataframe(df, use_container_width=True)
 
+        # Download the rsults as a CSV file
         st.download_button(
             "Download Output CSV",
             df.to_csv(index=False),
@@ -239,6 +248,8 @@ elif page == "Multiple Subjects":
         )
 
     else:
+
+        # while nothing is uploaded
         st.info("Upload CSV to run batch inference")
 
 
@@ -257,8 +268,8 @@ elif page == "Feature Names Explained":
         "Avg_WAB_AQ ": ("Western Aphasia Battery Aphasia Quotient Score (0-100)", "Numeric"),
         "Lesion_Volume": ("Lesion Volume (range from none to entire left hemisphere)", "Numeric"),
         "Freq_Cond": ("Frequency Condition (High/Low)", "Derived"),
-        "Syllables_avg (SyllaPy)": ("Syllables in Word", "Derived"),
-        "Phonemes_avg (CMUDict)": ("Phonemes in Word", "Derived"),
+        "Syllables_avg (CMU_dict)": ("Syllables in Word", "Derived"),
+        "Phonemes_avg (CMU_dict)": ("Phonemes in Word", "Derived"),
     }
 
     for k, v in features.items():
